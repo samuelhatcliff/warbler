@@ -114,7 +114,9 @@ class User(db.Model):
         'Message',
         secondary="likes"
     )
-
+    def num_likes(self):
+        return len(self.likes)
+        
     def __repr__(self):
         return f"<User #{self.id}: {self.username}, {self.email}>"
 
