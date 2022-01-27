@@ -7,7 +7,7 @@
 
 import os
 from unittest import TestCase
-
+from sqlalchemy import exc
 from models import db, connect_db, Message, User
 
 # BEFORE we import our app, let's set an environmental variable
@@ -38,6 +38,7 @@ class MessageViewTestCase(TestCase):
 
     def setUp(self):
         """Create test client, add sample data."""
+        # db.session.rollback()
 
         User.query.delete()
         Message.query.delete()
@@ -48,8 +49,23 @@ class MessageViewTestCase(TestCase):
                                     email="test@test.com",
                                     password="testuser",
                                     image_url=None)
+        self.testuser.id=1
+        
+        self.testuser2 = User.signup(username="testuser2",
+                                    email="test2@test.com",
+                                    password="testuser2",
+                                    image_url=None)
+        self.testuser2.id=2
+
+        user2 = User.query.get(2)
+        self.testuser.following.append(user2)
 
         db.session.commit()
+
+    def tearDown(self):
+        resp = super().tearDown()
+        db.session.rollback()
+        return resp
 
     def test_add_message(self):
         """Can use add a message?"""
@@ -65,9 +81,151 @@ class MessageViewTestCase(TestCase):
             # the rest of ours test
 
             resp = c.post("/messages/new", data={"text": "Hello"})
-
+        
             # Make sure it redirects
             self.assertEqual(resp.status_code, 302)
-
+            
             msg = Message.query.one()
             self.assertEqual(msg.text, "Hello")
+    
+    def test_delete_message(self):
+        
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            
+
+            resp = c.post("/messages/new", data={"text": "Hello"})
+        
+            
+            self.assertEqual(resp.status_code, 302)
+
+            
+            msg = Message.query.one()
+            id = msg.id
+            resp = c.post(f"/messages/{id}/delete", follow_redirects=True )
+            messages = Message.query.all()
+            self.assertEqual(len(messages), 0)
+    
+
+    def test_add_message_loggedout(self):
+        with self.client as c:
+            resp = c.post("/messages/new", data={"text": "Hello23456789"}, follow_redirects=True)
+            self.assertEqual(resp.status_code, 200)
+            html = str(resp.data)
+            self.assertIn("Access unauthorized", html)
+
+    def test_delete_message_loggedout(self):
+         with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            
+
+            resp = c.post("/messages/new", data={"text": "Hello"})
+        
+            
+            self.assertEqual(resp.status_code, 302)
+
+            
+            msg = Message.query.one()
+            id = msg.id
+            
+            
+            sess[CURR_USER_KEY] = None
+            resp = c.post(f"/messages/{id}/delete", follow_redirects=True )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(len(Message.query.all()),0)
+
+
+
+    def test_delete_message_wrong_user(self):
+        msg = Message(
+            id=10,
+            text="message text",
+            user_id=self.testuser2.id
+        )
+        db.session.add(msg)
+        db.session.commit()
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+            resp = c.post("/messages/10/delete", follow_redirects=True)
+            self.assertEqual(resp.status_code, 200)
+            msg = Message.query.get(10)
+            self.assertIsNotNone(msg)
+
+    def test_add_message_wrong_user(self):
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+                # with self.assertRaises(AssertionError):
+                # ASK FOR HELP
+                resp = c.post("/messages/new", data={"text": "Hello", "user_id":3})
+                #     db.session.commit()
+        
+
+
+    
+    def test_view_follows(self):
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+        
+
+        user2 = User.query.get(2)
+
+        
+
+        resp = c.get("/users/1/following")
+        self.assertEqual(resp.status_code, 200)
+
+
+
+        html = str(resp.data)
+        self.assertIn(str(user2.username), html)
+
+    def test_view_followers(self):
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+        user1 = User.query.get(1)
+        resp = c.get("/users/2/followers")
+        html = str(resp.data)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(str(user1.username), html)
+
+
+    def test_redirect_follows(self):
+
+        with self.client as c:
+            
+
+            user2 = User.query.get(2)
+
+            resp = c.get("/users/1/following", follow_redirects=True)
+            self.assertEqual(resp.status_code, 200)
+
+            html = str(resp.data)
+            self.assertNotIn(str(user2.username), html)
+            self.assertIn("Access unauthorized", html)
+
+
+
+
+
+
+
+
+
+
+
+
+
