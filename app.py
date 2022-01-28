@@ -173,15 +173,13 @@ def add_like(msg_id):
         flash("Please log-in and try again.", "danger")
         return redirect("/")
     message = Message.query.get_or_404(msg_id)
+    
     if message.user_id != g.user.id:
         liked_ids = [l.id for l in g.user.likes]
         print(liked_ids)
         if msg_id in liked_ids:
-            g.user.likes.remove(message)
-            if not msg_id in g.user.likes:
-                print("removing")
+            g.user.likes.remove(message) 
         else:
-            print("adding")
             g.user.likes.append(message)
         db.session.commit()
     return redirect("/")
