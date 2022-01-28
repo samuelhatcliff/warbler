@@ -38,7 +38,6 @@ class MessageViewTestCase(TestCase):
 
     def setUp(self):
         """Create test client, add sample data."""
-        # db.session.rollback()
 
         User.query.delete()
         Message.query.delete()
@@ -161,13 +160,13 @@ class MessageViewTestCase(TestCase):
     def test_add_message_wrong_user(self):
         with self.client as c:
             with c.session_transaction() as sess:
-                sess[CURR_USER_KEY] = self.testuser.id
-                # with self.assertRaises(AssertionError):
-                # ASK FOR HELP
-                resp = c.post("/messages/new", data={"text": "Hello", "user_id":3})
-                #     db.session.commit()
-        
+                sess[CURR_USER_KEY] = 12345
+            resp = c.post("/messages/new", data={"text": "Hello", "user_id": 3})
+            self.assertEqual(resp.status_code, 302)
 
+            resp = c.post("/messages/new", data={"text": "Hello", "user_id": 3}, follow_redirects=True)
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("Access unauthorized", str(resp.data))
 
     
     def test_view_follows(self):

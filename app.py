@@ -164,8 +164,7 @@ def show_liked_messages(user_id):
                     .query
                     .filter(Message.user_id.in_(liked_ids))
                 .all())
-    print(messages)
-    print("UP HERE!")
+    
     return render_template('messages/liked.html', messages=messages)
 
 @app.route("/users/add_like/<int:msg_id>", methods=['POST'])
@@ -174,19 +173,24 @@ def add_like(msg_id):
         flash("Please log-in and try again.", "danger")
         return redirect("/")
     message = Message.query.get_or_404(msg_id)
-    liked_ids = [l.id for l in g.user.likes]
-    if msg_id in liked_ids:
-        g.user.likes.remove(message)
-    else:
-        g.user.likes.append(message)
-    db.session.commit()
+    if message.user_id != g.user.id:
+        liked_ids = [l.id for l in g.user.likes]
+        print(liked_ids)
+        if msg_id in liked_ids:
+            g.user.likes.remove(message)
+            if not msg_id in g.user.likes:
+                print("removing")
+        else:
+            print("adding")
+            g.user.likes.append(message)
+        db.session.commit()
     return redirect("/")
 
 @app.route('/users/<int:user_id>/following')
 def show_following(user_id):
     """Show list of people this user is following."""
 
-    if not g.user:
+    if not g.user or g.user.id != session[CURR_USER_KEY]:
         flash("Access unauthorized.", "danger")
         return redirect("/")
 
@@ -198,7 +202,7 @@ def show_following(user_id):
 def users_followers(user_id):
     """Show list of followers of this user."""
 
-    if not g.user:
+    if not g.user or g.user.id != session[CURR_USER_KEY]:
         flash("Access unauthorized.", "danger")
         return redirect("/")
 
@@ -210,7 +214,7 @@ def users_followers(user_id):
 def add_follow(follow_id):
     """Add a follow for the currently-logged-in user."""
 
-    if not g.user:
+    if not g.user or g.user.id != session[CURR_USER_KEY]:
         flash("Access unauthorized.", "danger")
         return redirect("/")
 
@@ -225,7 +229,7 @@ def add_follow(follow_id):
 def stop_following(follow_id):
     """Have currently-logged-in-user stop following this user."""
 
-    if not g.user:
+    if not g.user or g.user.id != session[CURR_USER_KEY]:
         flash("Access unauthorized.", "danger")
         return redirect("/")
 
